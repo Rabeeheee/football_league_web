@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  /// Null when the account was created via Google sign-in
+  passwordHash String?
+  image        String?
+  /// LEAGUE_ADMIN | PENDING_ADMIN | TEAM_MANAGER | VISITOR
+  role         String   @default("VISITOR")
+  createdAt    DateTime @default(now())
+  managedTeam  Team?
+}
+
+model Tournament {
+  id        String   @id @default(cuid())
+  name      String   @default("Culvert Football League")
+  teamSlots Int      @default(8)
+  entryFee  Int      @default(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  teams     Team[]
+  matches   Match[]
+}
+
+model Team {
+  id           String     @id @default(cuid())
+  name         String
+  logoUrl      String?
+  /// Formation id e.g. 1-2-1, 2-1-1
+  formation    String     @default("1-2-1")
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  managerId    String?    @unique
+  manager      User?      @relation(fields: [managerId], references: [id], onDelete: SetNull)
+  players      Player[]
+  homeMatches  Match[]    @relation("HomeTeam")
+  awayMatches  Match[]    @relation("AwayTeam")
+  wonMatches   Match[]    @relation("WinnerTeam")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  name      String
+  avatarUrl String?
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /// STARTER | SUB
+  role      String   @default("STARTER")
+  /// Position badge label e.g. GK, ST (not a fixed anchor when free-moving)
+  pitchSlot String?
+  /// Free pitch position as % (0–100). Top = attack.
+  posX      Float?
+  posY      Float?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Match {
+  id           String     @id @default(cuid())
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  /// LEAGUE | KNOCKOUT
+  phase        String     @default("LEAGUE")
+  round        Int
+  slotIndex    Int
+  homeTeamId   String?
+  awayTeamId   String?
+  homeTeam     Team?      @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: SetNull)
+  awayTeam     Team?      @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: SetNull)
+  winnerTeamId String?
+  winnerTeam   Team?      @relation("WinnerTeam", fields: [winnerTeamId], references: [id], onDelete: SetNull)
+  homeGoals    Int?
+  awayGoals    Int?
+  isBronze     Boolean    @default(false)
+  /// PENDING | COMPLETED
+  status       String     @default("PENDING")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([tournamentId, phase, round, slotIndex, isBronze])
+}
