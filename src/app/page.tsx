@@ -11,7 +11,13 @@ export default async function HomePage() {
   });
   if (!tournament) {
     tournament = await prisma.tournament.create({
-      data: { name: "Culvert Football League", teamSlots: 8, entryFee: 100 },
+      data: {
+        name: "Culvert Football League",
+        teamSlots: 8,
+        entryFee: 100,
+        starterCount: 5,
+        subCount: 2,
+      },
       include: { _count: { select: { teams: true } } },
     });
   }
@@ -56,8 +62,9 @@ export default async function HomePage() {
           </h1>
           <p className="mt-3 max-w-xl text-base leading-relaxed text-white/70 sm:mt-4 sm:text-lg">
             Browse every team on the pitch, follow the league fixtures, and
-            check the points table. Team managers edit their own squad — 5
-            starters and 2 substitutes.
+            check the points table. Team managers edit their own squad —{" "}
+            {tournament.starterCount} starters and {tournament.subCount}{" "}
+            substitutes.
           </p>
           <div className="mt-5 inline-flex w-full max-w-sm flex-wrap items-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-500/15 px-4 py-2.5 text-amber-100 sm:mt-6 sm:w-fit sm:rounded-full sm:gap-3 sm:px-5 sm:py-2">
             <span className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/80 sm:text-xs">
@@ -98,7 +105,10 @@ export default async function HomePage() {
           label="Teams registered"
           value={`${tournament._count.teams} / ${tournament.teamSlots}`}
         />
-        <Stat label="Squad size" value="5 + 2" />
+        <Stat
+          label="Squad size"
+          value={`${tournament.starterCount} + ${tournament.subCount}`}
+        />
         <Stat
           label="Entry fee"
           value={`₹${tournament.entryFee}`}

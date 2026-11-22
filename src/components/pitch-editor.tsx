@@ -24,7 +24,13 @@ import {
   getFormation,
   isPresetFormation,
 } from "@/lib/pitch";
+import Link from "next/link";
 import { ImageUpload } from "@/components/image-upload";
+
+type ViewerProfile = {
+  name: string;
+  image?: string | null;
+};
 
 type Props = {
   teamId: string;
@@ -34,6 +40,10 @@ type Props = {
   teamName: string;
   logoUrl?: string | null;
   managerName?: string | null;
+  managerImage?: string | null;
+  viewer?: ViewerProfile | null;
+  starterCount?: number;
+  subCount?: number;
 };
 
 const ROLE_LABELS = [
@@ -58,17 +68,31 @@ export function PitchEditor({
   teamName,
   logoUrl: initialLogo,
   managerName,
+  managerImage,
+  viewer = null,
+  starterCount = 5,
+  subCount = 2,
 }: Props) {
   const initialFormationDef = getFormation(
     initialFormation || FORMATIONS[0]!.id,
   );
-  const [players, setPlayers] = useState(() =>
-    ensurePlayerCoords(initialPlayers, initialFormationDef),
+  const startingPlayers: Player[] = ensurePlayerCoords(
+    initialPlayers,
+    initialFormationDef,
   );
-  const [formationId, setFormationId] = useState(
-    initialFormation || initialFormationDef.id,
-  );
+  const startingFormationId = initialFormation || initialFormationDef.id;
+  const [players, setPlayers] = useState<Player[]>(() => startingPlayers);
+  const [formationId, setFormationId] = useState(startingFormationId);
   const [logoUrl, setLogoUrl] = useState(initialLogo ?? null);
+  const [baseline, setBaseline] = useState<{
+    formationId: string;
+    logoUrl: string | null;
+    players: Player[];
+  }>({
+    formationId: startingFormationId,
+    logoUrl: initialLogo ?? null,
+    players: startingPlayers,
+  });
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -129,8 +153,34 @@ export function PitchEditor({
     const next = getFormation(nextId);
     setFormationId(nextId);
     setPlayers((prev) => applyFormationSlots(prev, next));
-    setMessage("Formation applied — drag players anywhere to fine-tune");
+    setMessage("Formation applied — use Reset if that was a mistake");
   }
+
+  function resetGamePlan() {
+    setFormationId(baseline.formationId);
+    setLogoUrl(baseline.logoUrl);
+    setPlayers(baseline.players.map((p) => ({ ...p })));
+    setSelectedId(null);
+    setMessage("Reset to last saved game plan");
+  }
+
+  const isDirty = useMemo(() => {
+    if (formationId !== baseline.formationId) return true;
+    if ((logoUrl ?? null) !== (baseline.logoUrl ?? null)) return true;
+    if (players.length !== baseline.players.length) return true;
+    return players.some((p) => {
+      const b = baseline.players.find((x) => x.id === p.id);
+      if (!b) return true;
+      return (
+        p.name !== b.name ||
+        p.role !== b.role ||
+        p.pitchSlot !== b.pitchSlot ||
+        p.avatarUrl !== b.avatarUrl ||
+        p.posX !== b.posX ||
+        p.posY !== b.posY
+      );
+    });
+  }, [players, formationId, logoUrl, baseline]);
 
   function onDragStart(event: DragStartEvent) {
     if (!canEdit) return;
@@ -307,18 +357,23 @@ export function PitchEditor({
         data.formation ||
         data.detectedFormation ||
         detectFormationFromPositions(data.players);
-      setPlayers(
-        ensurePlayerCoords(
-          data.players,
-          getFormation(
-            isPresetFormation(savedFormation)
-              ? savedFormation
-              : FORMATIONS[0]!.id,
-          ),
+      const nextFormation = savedFormation || formationId;
+      const nextPlayers: Player[] = ensurePlayerCoords(
+        data.players as Player[],
+        getFormation(
+          isPresetFormation(nextFormation)
+            ? nextFormation
+            : FORMATIONS[0]!.id,
         ),
       );
-      if (savedFormation) setFormationId(savedFormation);
-      setMessage(`Game plan saved · ${savedFormation}`);
+      setPlayers(nextPlayers);
+      setFormationId(nextFormation);
+      setBaseline({
+        formationId: nextFormation,
+        logoUrl: logoUrl ?? null,
+        players: nextPlayers.map((p) => ({ ...p })),
+      });
+      setMessage(`Game plan saved · ${nextFormation}`);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -364,6 +419,25 @@ export function PitchEditor({
               {displayFormation}
               {managerName ? ` · ${managerName}` : ""}
             </p>
+            {viewer && (
+              <div className="mt-2 flex items-center gap-2">
+                {viewer.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={viewer.image}
+                    alt=""
+                    className="h-6 w-6 rounded-full object-cover ring-1 ring-white/20"
+                  />
+                ) : (
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-800 text-[10px] font-bold text-white">
+                    {viewer.name.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+                <span className="truncate text-xs font-medium text-white/75">
+                  {viewer.name}
+                </span>
+              </div>
+            )}
           </div>
           {canEdit && (
             <button
@@ -404,6 +478,62 @@ export function PitchEditor({
               </div>
             </div>
 
+            {(managerName || viewer) && (
+              <div className="hidden space-y-3 lg:block">
+                {managerName && (
+                  <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3">
+                    {managerImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={managerImage}
+                        alt=""
+                        className="h-11 w-11 rounded-full object-cover ring-2 ring-white/15"
+                      />
+                    ) : (
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-900 text-sm font-bold text-white ring-2 ring-white/15">
+                        {managerName.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                        Manager
+                      </p>
+                      <p className="truncate text-sm font-semibold text-white">
+                        {managerName}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {viewer && (
+                  <Link
+                    href="/profile"
+                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3 hover:bg-white/5"
+                  >
+                    {viewer.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={viewer.image}
+                        alt=""
+                        className="h-11 w-11 rounded-full object-cover ring-2 ring-white/15"
+                      />
+                    ) : (
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-800 text-sm font-bold text-white ring-2 ring-white/15">
+                        {viewer.name.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                        You
+                      </p>
+                      <p className="truncate text-sm font-semibold text-white">
+                        {viewer.name}
+                      </p>
+                    </div>
+                  </Link>
+                )}
+              </div>
+            )}
+
             {canEdit && (
               <ImageUpload
                 value={logoUrl}
@@ -414,9 +544,20 @@ export function PitchEditor({
             )}
 
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
-                Formation presets
-              </p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
+                  Formation presets
+                </p>
+                {canEdit && isDirty && (
+                  <button
+                    type="button"
+                    onClick={resetGamePlan}
+                    className="rounded-md px-2 py-1 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/15"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
               <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-2">
                 {FORMATIONS.map((f) => (
                   <button
@@ -447,6 +588,15 @@ export function PitchEditor({
                     "Updates automatically from free positioning (e.g. 1-3-1)."}
                 </p>
               </div>
+              {canEdit && isDirty && (
+                <button
+                  type="button"
+                  onClick={resetGamePlan}
+                  className="mt-3 w-full rounded-xl border border-amber-400/30 bg-amber-500/10 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-500/20"
+                >
+                  Reset formation & positions
+                </button>
+              )}
             </div>
 
             {canEdit && (
@@ -515,6 +665,15 @@ export function PitchEditor({
                 ? "Drag players on the pitch · tap a card to edit · drop on bench to sub"
                 : "View only"}
             </p>
+
+            <div className="mt-3">
+              <Bench
+                subs={subs}
+                canEdit={canEdit}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
+            </div>
           </div>
 
           <aside className="order-3 space-y-4 rounded-2xl border border-white/10 bg-[#0a1610]/90 p-4 lg:order-3">
@@ -524,10 +683,14 @@ export function PitchEditor({
                   Squad strength
                 </p>
                 <p className="font-display text-3xl text-white lg:text-4xl">
-                  7
+                  {players.length}
                   <span className="ml-1 text-base text-white/40 lg:text-lg">
                     players
                   </span>
+                </p>
+                <p className="mt-1 text-[11px] text-white/40">
+                  {starters.length}/{starterCount} starters · {subs.length}/
+                  {subCount} subs
                 </p>
               </div>
               {canEdit && (
@@ -615,13 +778,6 @@ export function PitchEditor({
             )}
           </aside>
         </div>
-
-        <Bench
-          subs={subs}
-          canEdit={canEdit}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
 
         <DragOverlay dropAnimation={null}>
           {activePlayer ? (

@@ -25,6 +25,8 @@ async function main() {
         name: "Culvert Football League",
         teamSlots: 8,
         entryFee: 100,
+        starterCount: 5,
+        subCount: 2,
       },
     });
   }

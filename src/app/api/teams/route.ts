@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { PlayerRole, Role } from "@/lib/roles";
+import { Role } from "@/lib/roles";
 import { DEFAULT_FORMATION, getFormation } from "@/lib/pitch";
+import { buildDefaultPlayers, clampSquadCounts } from "@/lib/squad";
 
 export async function GET() {
   const teams = await prisma.team.findMany({
@@ -23,18 +24,8 @@ const emptyToNull = (v: unknown) =>
 const createSchema = z.object({
   name: z.string().min(2).max(80),
   logoUrl: z.preprocess(emptyToNull, z.string().nullable().optional()),
-  managerEmail: z.preprocess(
-    emptyToNull,
-    z.string().email().nullable().optional(),
-  ),
-  managerName: z.preprocess(
-    emptyToNull,
-    z.string().min(2).max(80).nullable().optional(),
-  ),
-  managerPassword: z.preprocess(
-    emptyToNull,
-    z.string().min(6).max(100).nullable().optional(),
-  ),
+  managerEmail: z.string().trim().email("Manager email is required"),
+  managerName: z.string().trim().min(2, "Manager name is required").max(80),
 });
 
 export async function POST(req: Request) {
@@ -48,7 +39,13 @@ export async function POST(req: Request) {
     let tournament = await prisma.tournament.findFirst();
     if (!tournament) {
       tournament = await prisma.tournament.create({
-        data: { name: "Culvert Football League", teamSlots: 8, entryFee: 100 },
+        data: {
+          name: "Culvert Football League",
+          teamSlots: 8,
+          entryFee: 100,
+          starterCount: 5,
+          subCount: 2,
+        },
       });
     }
 
@@ -62,60 +59,61 @@ export async function POST(req: Request) {
       );
     }
 
-    let managerId: string | undefined;
-    if (body.managerEmail) {
-      const email = body.managerEmail.toLowerCase().trim();
-      let manager = await prisma.user.findUnique({ where: { email } });
-      if (!manager) {
-        if (!body.managerPassword || !body.managerName) {
-          return NextResponse.json(
-            {
-              error:
-                "New manager requires managerName and managerPassword",
-            },
-            { status: 400 },
-          );
-        }
-        const bcrypt = await import("bcryptjs");
-        const passwordHash = await bcrypt.hash(body.managerPassword, 10);
-        manager = await prisma.user.create({
+    const email = body.managerEmail.toLowerCase().trim();
+    let manager = await prisma.user.findUnique({ where: { email } });
+    if (!manager) {
+      // No password — manager signs in with Google using this email
+      manager = await prisma.user.create({
+        data: {
+          email,
+          name: body.managerName.trim(),
+          passwordHash: null,
+          role: Role.TEAM_MANAGER,
+        },
+      });
+    } else {
+      const alreadyManaging = await prisma.team.findUnique({
+        where: { managerId: manager.id },
+      });
+      if (alreadyManaging) {
+        return NextResponse.json(
+          { error: "That user already manages a team" },
+          { status: 400 },
+        );
+      }
+      // Existing account: attach as manager (keep their password; form password ignored)
+      if (
+        manager.role === Role.VISITOR ||
+        manager.role === Role.PENDING_ADMIN ||
+        manager.role === Role.TEAM_MANAGER
+      ) {
+        manager = await prisma.user.update({
+          where: { id: manager.id },
           data: {
-            email,
-            name: body.managerName.trim(),
-            passwordHash,
             role: Role.TEAM_MANAGER,
+            name: body.managerName.trim() || manager.name,
           },
         });
-      } else {
-        if (manager.role === Role.VISITOR) {
-          manager = await prisma.user.update({
-            where: { id: manager.id },
-            data: { role: Role.TEAM_MANAGER },
-          });
-        }
-        const alreadyManaging = await prisma.team.findUnique({
-          where: { managerId: manager.id },
+      } else if (manager.role === Role.LEAGUE_ADMIN) {
+        // Admins can also manage a team without demoting
+        manager = await prisma.user.update({
+          where: { id: manager.id },
+          data: { name: body.managerName.trim() || manager.name },
         });
-        if (alreadyManaging) {
-          return NextResponse.json(
-            { error: "That user already manages a team" },
-            { status: 400 },
-          );
-        }
       }
-      managerId = manager.id;
     }
+    const managerId = manager.id;
 
     const formation = getFormation(DEFAULT_FORMATION);
-    const defaultNames = [
-      "Player 1",
-      "Player 2",
-      "Player 3",
-      "Player 4",
-      "Player 5",
-      "Sub 1",
-      "Sub 2",
-    ];
+    const counts = clampSquadCounts({
+      starterCount: tournament.starterCount,
+      subCount: tournament.subCount,
+    });
+    const defaultPlayers = buildDefaultPlayers(
+      counts.starterCount,
+      counts.subCount,
+      formation,
+    );
 
     const team = await prisma.team.create({
       data: {
@@ -125,18 +123,7 @@ export async function POST(req: Request) {
         tournamentId: tournament.id,
         managerId: managerId ?? null,
         players: {
-          create: defaultNames.map((name, i) => {
-            const slot = i < 5 ? formation.slots[i]! : null;
-            const pos = slot ? formation.positions[slot] : null;
-            return {
-              name,
-              role: i < 5 ? PlayerRole.STARTER : PlayerRole.SUB,
-              pitchSlot: slot,
-              posX: pos ? Number.parseFloat(pos.left) : null,
-              posY: pos ? Number.parseFloat(pos.top) : null,
-              sortOrder: i,
-            };
-          }),
+          create: defaultPlayers,
         },
       },
       include: {

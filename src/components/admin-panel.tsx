@@ -33,8 +33,12 @@ export function AdminPanel({
   const [teams, setTeams] = useState(initialTeams);
   const [pending, setPending] = useState(initialPending);
   const [name, setName] = useState(initial.name);
-  const [teamSlots, setTeamSlots] = useState(initial.teamSlots);
-  const [entryFee, setEntryFee] = useState(initial.entryFee);
+  const [teamSlots, setTeamSlots] = useState(String(initial.teamSlots));
+  const [entryFee, setEntryFee] = useState(String(initial.entryFee));
+  const [starterCount, setStarterCount] = useState(
+    String(initial.starterCount ?? 5),
+  );
+  const [subCount, setSubCount] = useState(String(initial.subCount ?? 2));
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -42,22 +46,57 @@ export function AdminPanel({
   const [logoUrl, setLogoUrl] = useState("");
   const [managerEmail, setManagerEmail] = useState("");
   const [managerName, setManagerName] = useState("");
-  const [managerPassword, setManagerPassword] = useState("");
 
   async function saveSettings(e: React.FormEvent) {
     e.preventDefault();
+    const nextStarters = Number(starterCount);
+    const nextSubs = Number(subCount);
+    const countsChanging =
+      nextStarters !== tournament.starterCount ||
+      nextSubs !== tournament.subCount;
+    if (
+      countsChanging &&
+      teams.length > 0 &&
+      !confirm(
+        `Change squad to ${nextStarters} starters + ${nextSubs} substitutes?\n\nThis will resize every team's roster (add or remove players).`,
+      )
+    ) {
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
       const res = await fetch("/api/tournament", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, teamSlots, entryFee }),
+        body: JSON.stringify({
+          name,
+          teamSlots: Number(teamSlots),
+          entryFee: Number(entryFee),
+          starterCount: nextStarters,
+          subCount: nextSubs,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
       setTournament(data.tournament);
-      setMsg("Tournament settings saved");
+      setTeamSlots(String(data.tournament.teamSlots));
+      setEntryFee(String(data.tournament.entryFee));
+      setStarterCount(String(data.tournament.starterCount));
+      setSubCount(String(data.tournament.subCount));
+      if (data.rostersResized) {
+        // Refresh team player counts after resize
+        const teamsRes = await fetch("/api/teams");
+        const teamsData = await teamsRes.json();
+        if (teamsRes.ok && Array.isArray(teamsData.teams)) {
+          setTeams(teamsData.teams);
+        }
+        setMsg(
+          `Settings saved — all teams resized to ${data.tournament.starterCount}+${data.tournament.subCount}`,
+        );
+      } else {
+        setMsg("Tournament settings saved");
+      }
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -76,9 +115,8 @@ export function AdminPanel({
         body: JSON.stringify({
           name: teamName,
           logoUrl: logoUrl || null,
-          managerEmail: managerEmail || null,
-          managerName: managerName || null,
-          managerPassword: managerPassword || null,
+          managerEmail: managerEmail.trim(),
+          managerName: managerName.trim(),
         }),
       });
       const data = await res.json();
@@ -93,7 +131,6 @@ export function AdminPanel({
       setLogoUrl("");
       setManagerEmail("");
       setManagerName("");
-      setManagerPassword("");
       setMsg(`Created team ${data.team.name}`);
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Failed");
@@ -198,9 +235,9 @@ export function AdminPanel({
         </p>
         <form
           onSubmit={saveSettings}
-          className="mt-4 grid gap-4 sm:grid-cols-3"
+          className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
-          <label className="block text-sm text-white/70">
+          <label className="block text-sm text-white/70 sm:col-span-2 lg:col-span-3">
             League name
             <input
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
@@ -215,9 +252,11 @@ export function AdminPanel({
               type="number"
               min={2}
               max={64}
+              inputMode="numeric"
+              placeholder="e.g. 8"
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
               value={teamSlots}
-              onChange={(e) => setTeamSlots(Number(e.target.value))}
+              onChange={(e) => setTeamSlots(e.target.value)}
               required
             />
           </label>
@@ -226,27 +265,63 @@ export function AdminPanel({
             <input
               type="number"
               min={0}
+              inputMode="numeric"
+              placeholder="e.g. 100"
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
               value={entryFee}
-              onChange={(e) => setEntryFee(Number(e.target.value))}
+              onChange={(e) => setEntryFee(e.target.value)}
               required
             />
           </label>
+          <label className="block text-sm text-white/70">
+            Starters (on pitch)
+            <input
+              type="number"
+              min={3}
+              max={11}
+              inputMode="numeric"
+              className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
+              value={starterCount}
+              onChange={(e) => setStarterCount(e.target.value)}
+              required
+            />
+          </label>
+          <label className="block text-sm text-white/70">
+            Substitutes (bench)
+            <input
+              type="number"
+              min={0}
+              max={7}
+              inputMode="numeric"
+              className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
+              value={subCount}
+              onChange={(e) => setSubCount(e.target.value)}
+              required
+            />
+          </label>
+          <p className="text-[11px] text-white/40 sm:col-span-2 lg:col-span-3">
+            Squad size {starterCount || "?"} + {subCount || "?"} applies to every
+            team. Changing it resizes existing rosters.
+          </p>
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-60 sm:col-span-3 sm:w-fit sm:py-2"
+            className="w-full rounded-lg bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-400 disabled:opacity-60 sm:col-span-2 sm:w-fit sm:py-2 lg:col-span-3"
           >
             Save settings
           </button>
         </form>
         <p className="mt-3 text-xs text-white/40">
-          {teams.length} / {tournament.teamSlots} teams registered
+          {teams.length} / {tournament.teamSlots} teams registered · squad{" "}
+          {tournament.starterCount}+{tournament.subCount}
         </p>
       </section>
 
       <section className="rounded-2xl border border-white/10 bg-black/30 p-4 sm:p-6">
         <h2 className="font-display text-xl text-white">Create team</h2>
+        <p className="mt-1 text-sm text-white/50">
+          A team manager is required — they can edit the game plan.
+        </p>
         <form onSubmit={createTeam} className="mt-4 grid gap-4 sm:grid-cols-2">
           <label className="block text-sm text-white/70">
             Team name
@@ -255,6 +330,7 @@ export function AdminPanel({
               value={teamName}
               onChange={(e) => setTeamName(e.target.value)}
               required
+              minLength={2}
             />
           </label>
           <div className="sm:col-span-2">
@@ -267,31 +343,28 @@ export function AdminPanel({
             />
           </div>
           <label className="block text-sm text-white/70">
-            Manager email (optional)
+            Manager email
             <input
               type="email"
+              required
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
               value={managerEmail}
               onChange={(e) => setManagerEmail(e.target.value)}
             />
           </label>
           <label className="block text-sm text-white/70">
-            Manager name (if new)
+            Manager name
             <input
+              required
+              minLength={2}
               className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
               value={managerName}
               onChange={(e) => setManagerName(e.target.value)}
             />
           </label>
-          <label className="block text-sm text-white/70 sm:col-span-2">
-            Manager password (if new)
-            <input
-              type="password"
-              className="mt-1 w-full rounded-lg border border-white/15 bg-black/40 px-3 py-2 text-white"
-              value={managerPassword}
-              onChange={(e) => setManagerPassword(e.target.value)}
-            />
-          </label>
+          <p className="text-[11px] text-white/40 sm:col-span-2">
+            Manager signs in with Google using this email — no password needed.
+          </p>
           <button
             type="submit"
             disabled={busy}

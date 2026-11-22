@@ -170,7 +170,12 @@ export const authOptions: NextAuthOptions = {
         const dbUser = await prisma.user.findUnique({
           where: { email: String(token.email).toLowerCase().trim() },
         });
-        if (dbUser) token.role = dbUser.role as RoleType;
+        if (dbUser) {
+          token.id = dbUser.id;
+          token.role = dbUser.role as RoleType;
+          token.name = dbUser.name;
+          token.picture = dbUser.image ?? null;
+        }
       }
 
       return token;
@@ -179,7 +184,10 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
-        if (token.picture) session.user.image = String(token.picture);
+        if (token.name) session.user.name = String(token.name);
+        session.user.image = token.picture
+          ? String(token.picture)
+          : session.user.image;
       }
       return session;
     },

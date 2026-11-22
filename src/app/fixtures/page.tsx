@@ -9,7 +9,13 @@ export default async function FixturesPage() {
   let tournament = await prisma.tournament.findFirst();
   if (!tournament) {
     tournament = await prisma.tournament.create({
-      data: { name: "Culvert Football League", teamSlots: 8, entryFee: 100 },
+      data: {
+        name: "Culvert Football League",
+        teamSlots: 8,
+        entryFee: 100,
+        starterCount: 5,
+        subCount: 2,
+      },
     });
   }
 

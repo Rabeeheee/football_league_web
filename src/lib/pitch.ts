@@ -128,13 +128,24 @@ export function applyFormationSlots<
     .map((p) => ({ ...p, posX: null, posY: null }));
 
   const remapped = starters.map((p, i) => {
-    const slot = formation.slots[i] ?? p.pitchSlot ?? "ST";
-    const pos = formation.positions[slot];
+    const slot = formation.slots[i];
+    if (slot) {
+      const pos = formation.positions[slot];
+      return {
+        ...p,
+        pitchSlot: slot,
+        posX: parsePercent(pos?.left, 50),
+        posY: parsePercent(pos?.top, 50),
+      };
+    }
+    // More starters than preset slots — park extras midfield
+    const col = (i - formation.slots.length) % 3;
+    const row = Math.floor((i - formation.slots.length) / 3);
     return {
       ...p,
-      pitchSlot: slot,
-      posX: parsePercent(pos?.left, 50),
-      posY: parsePercent(pos?.top, 50),
+      pitchSlot: p.pitchSlot || "CM",
+      posX: 25 + col * 25,
+      posY: 42 + row * 10,
     };
   });
   return [...remapped, ...others];
@@ -176,6 +187,7 @@ export function ensurePlayerCoords<
 export const PITCH_SLOTS = getFormation(DEFAULT_FORMATION).slots;
 export const SLOT_POSITIONS = getFormation(DEFAULT_FORMATION).positions;
 
+/** Defaults — live counts live on Tournament.starterCount / subCount */
 export const STARTER_COUNT = 5;
 export const SUB_COUNT = 2;
 

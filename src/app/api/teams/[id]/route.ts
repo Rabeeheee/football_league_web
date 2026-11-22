@@ -27,7 +27,6 @@ const updateSchema = z.object({
   formation: z.string().optional(),
   managerEmail: z.string().email().optional().nullable(),
   managerName: z.string().min(2).max(80).optional().nullable(),
-  managerPassword: z.string().min(6).max(100).optional().nullable(),
 });
 
 export async function PATCH(req: Request, { params }: Params) {
@@ -68,22 +67,17 @@ export async function PATCH(req: Request, { params }: Params) {
         const email = body.managerEmail.toLowerCase().trim();
         let manager = await prisma.user.findUnique({ where: { email } });
         if (!manager) {
-          if (!body.managerPassword || !body.managerName) {
+          if (!body.managerName) {
             return NextResponse.json(
-              {
-                error:
-                  "New manager requires managerName and managerPassword",
-              },
+              { error: "New manager requires managerName" },
               { status: 400 },
             );
           }
-          const bcrypt = await import("bcryptjs");
-          const passwordHash = await bcrypt.hash(body.managerPassword, 10);
           manager = await prisma.user.create({
             data: {
               email,
               name: body.managerName.trim(),
-              passwordHash,
+              passwordHash: null,
               role: Role.TEAM_MANAGER,
             },
           });

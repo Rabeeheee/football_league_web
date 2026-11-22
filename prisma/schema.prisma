@@ -21,14 +21,18 @@ model User {
 }
 
 model Tournament {
-  id        String   @id @default(cuid())
-  name      String   @default("Culvert Football League")
-  teamSlots Int      @default(8)
-  entryFee  Int      @default(100)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  teams     Team[]
-  matches   Match[]
+  id           String   @id @default(cuid())
+  name         String   @default("Culvert Football League")
+  teamSlots    Int      @default(8)
+  entryFee     Int      @default(100)
+  /// On-pitch starters per team (includes GK)
+  starterCount Int      @default(5)
+  /// Bench substitutes per team
+  subCount     Int      @default(2)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  teams        Team[]
+  matches      Match[]
 }
 
 model Team {

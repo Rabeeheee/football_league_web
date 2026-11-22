@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { fileToDataUrl } from "@/lib/client-image";
 
 type Props = {
   value?: string | null;
@@ -26,16 +27,13 @@ export function ImageUpload({
     setBusy(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      onChange(data.url);
+      const url = await fileToDataUrl(file);
+      onChange(url);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
@@ -64,9 +62,11 @@ export function ImageUpload({
             onClick={() => inputRef.current?.click()}
             className="text-sm text-emerald-300 hover:underline disabled:opacity-50"
           >
-            {busy ? "Uploading…" : label}
+            {busy ? "Processing…" : label}
           </button>
-          <p className="text-[11px] text-white/40">From gallery · JPG/PNG/WEBP</p>
+          <p className="text-[11px] text-white/40">
+            From gallery · auto-compressed · JPG/PNG/WEBP
+          </p>
         </div>
         <input
           ref={inputRef}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { fileToDataUrl } from "@/lib/client-image";
 
 type Props = {
   value?: string | null;
@@ -11,26 +12,24 @@ type Props = {
 export function CompactAvatarUpload({ value, onChange, disabled }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function onFile(file: File | undefined) {
     if (!file || disabled) return;
     setBusy(true);
+    setError(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      onChange(data.url);
-    } catch {
-      // silent — parent save flow will surface issues if needed
+      onChange(await fileToDataUrl(file));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
   return (
-    <>
+    <div className="space-y-1">
       <button
         type="button"
         disabled={disabled || busy}
@@ -43,6 +42,7 @@ export function CompactAvatarUpload({ value, onChange, disabled }: Props) {
       >
         {busy ? "…" : value ? "Change photo" : "Add photo"}
       </button>
+      {error && <p className="text-[10px] text-red-300">{error}</p>}
       <input
         ref={inputRef}
         type="file"
@@ -50,6 +50,6 @@ export function CompactAvatarUpload({ value, onChange, disabled }: Props) {
         className="hidden"
         onChange={(e) => void onFile(e.target.files?.[0])}
       />
-    </>
+    </div>
   );
 }

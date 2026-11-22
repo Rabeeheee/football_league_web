@@ -105,13 +105,25 @@ export function Nav() {
               </Link>
             )}
             {session ? (
-              <button
-                type="button"
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="ml-1 rounded px-3 py-1.5 text-white/60 hover:bg-white/10 hover:text-white"
-              >
-                Sign out
-              </button>
+              <>
+                <Link
+                  href="/profile"
+                  className={`rounded px-3 py-1.5 transition ${
+                    pathname.startsWith("/profile")
+                      ? "bg-white/15 text-white"
+                      : "text-white/70 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  Profile
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => signOut({ callbackUrl: "/" })}
+                  className="ml-1 rounded px-3 py-1.5 text-white/60 hover:bg-white/10 hover:text-white"
+                >
+                  Sign out
+                </button>
+              </>
             ) : (
               <Link
                 href="/login"
@@ -125,13 +137,16 @@ export function Nav() {
           {/* Mobile: account + menu */}
           <div className="flex items-center gap-2 md:hidden">
             {session ? (
-              <button
-                type="button"
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="rounded-lg px-2.5 py-1.5 text-xs text-white/60 hover:bg-white/10"
+              <Link
+                href="/profile"
+                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold ${
+                  pathname.startsWith("/profile")
+                    ? "bg-white/15 text-white"
+                    : "text-white/70 hover:bg-white/10"
+                }`}
               >
-                Out
-              </button>
+                Profile
+              </Link>
             ) : (
               <Link
                 href="/login"
@@ -210,6 +225,27 @@ export function Nav() {
                 >
                   Pending approval
                 </Link>
+              )}
+              {session && (
+                <>
+                  <Link
+                    href="/profile"
+                    className={`rounded-xl px-4 py-3 text-base font-medium ${
+                      pathname.startsWith("/profile")
+                        ? "bg-white/15 text-white"
+                        : "text-white/75 active:bg-white/10"
+                    }`}
+                  >
+                    Manage profile
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                    className="rounded-xl px-4 py-3 text-left text-base font-medium text-white/55 active:bg-white/10"
+                  >
+                    Sign out
+                  </button>
+                </>
               )}
             </nav>
           </div>
