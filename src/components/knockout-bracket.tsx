@@ -20,7 +20,8 @@ export type MatchWithTeams = Match & {
 type Props = {
   matches: MatchWithTeams[];
   isAdmin: boolean;
-  busy: boolean;
+  locked?: boolean;
+  savingId?: string | null;
   onSubmit: (matchId: string, homeGoals: number, awayGoals: number) => void;
 };
 
@@ -32,7 +33,8 @@ const COL_GAP = 56;
 export function KnockoutBracket({
   matches,
   isAdmin,
-  busy,
+  locked = false,
+  savingId = null,
   onSubmit,
 }: Props) {
   const [mobileRound, setMobileRound] = useState(0);
@@ -177,7 +179,8 @@ export function KnockoutBracket({
               key={m.id}
               match={m}
               isAdmin={isAdmin}
-              busy={busy}
+              locked={locked}
+              saving={savingId === m.id}
               onSubmit={onSubmit}
               wide
             />
@@ -250,7 +253,8 @@ export function KnockoutBracket({
                     <BracketMatchCard
                       match={m}
                       isAdmin={isAdmin}
-                      busy={busy}
+                      locked={locked}
+                      saving={savingId === m.id}
                       onSubmit={onSubmit}
                     />
                   </div>
@@ -289,7 +293,8 @@ export function KnockoutBracket({
                 <BracketMatchCard
                   match={bronze}
                   isAdmin={isAdmin}
-                  busy={busy}
+                  locked={locked}
+                  saving={savingId === bronze.id}
                   onSubmit={onSubmit}
                   wide
                 />
@@ -305,13 +310,15 @@ export function KnockoutBracket({
 function BracketMatchCard({
   match,
   isAdmin,
-  busy,
+  locked,
+  saving,
   onSubmit,
   wide,
 }: {
   match: MatchWithTeams;
   isAdmin: boolean;
-  busy: boolean;
+  locked: boolean;
+  saving: boolean;
   onSubmit: (matchId: string, homeGoals: number, awayGoals: number) => void;
   wide?: boolean;
 }) {
@@ -328,9 +335,10 @@ function BracketMatchCard({
   }, [match.homeGoals, match.awayGoals, match.id]);
 
   const ready =
-    isAdmin && !busy && !!match.homeTeamId && !!match.awayTeamId;
+    isAdmin && !locked && !!match.homeTeamId && !!match.awayTeamId;
   const canSave =
     ready &&
+    !saving &&
     homeGoals !== "" &&
     awayGoals !== "" &&
     Number(homeGoals) !== Number(awayGoals);
@@ -388,7 +396,7 @@ function BracketMatchCard({
               onSubmit(match.id, Number(homeGoals), Number(awayGoals))
             }
           >
-            {completed ? "Update" : "Save"}
+            {saving ? "…" : completed ? "Update" : "Save"}
           </button>
         </div>
       ) : !match.homeTeamId || !match.awayTeamId ? (

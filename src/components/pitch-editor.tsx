@@ -24,13 +24,7 @@ import {
   getFormation,
   isPresetFormation,
 } from "@/lib/pitch";
-import Link from "next/link";
 import { ImageUpload } from "@/components/image-upload";
-
-type ViewerProfile = {
-  name: string;
-  image?: string | null;
-};
 
 type Props = {
   teamId: string;
@@ -41,7 +35,6 @@ type Props = {
   logoUrl?: string | null;
   managerName?: string | null;
   managerImage?: string | null;
-  viewer?: ViewerProfile | null;
   starterCount?: number;
   subCount?: number;
 };
@@ -69,7 +62,6 @@ export function PitchEditor({
   logoUrl: initialLogo,
   managerName,
   managerImage,
-  viewer = null,
   starterCount = 5,
   subCount = 2,
 }: Props) {
@@ -417,24 +409,23 @@ export function PitchEditor({
             </p>
             <p className="mt-1 truncate text-xs text-white/45">
               {displayFormation}
-              {managerName ? ` · ${managerName}` : ""}
             </p>
-            {viewer && (
+            {managerName && (
               <div className="mt-2 flex items-center gap-2">
-                {viewer.image ? (
+                {managerImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={viewer.image}
+                    src={managerImage}
                     alt=""
                     className="h-6 w-6 rounded-full object-cover ring-1 ring-white/20"
                   />
                 ) : (
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-800 text-[10px] font-bold text-white">
-                    {viewer.name.slice(0, 1).toUpperCase()}
+                    {managerName.slice(0, 1).toUpperCase()}
                   </span>
                 )}
                 <span className="truncate text-xs font-medium text-white/75">
-                  {viewer.name}
+                  Manager · {managerName}
                 </span>
               </div>
             )}
@@ -478,59 +469,30 @@ export function PitchEditor({
               </div>
             </div>
 
-            {(managerName || viewer) && (
-              <div className="hidden space-y-3 lg:block">
-                {managerName && (
-                  <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3">
-                    {managerImage ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={managerImage}
-                        alt=""
-                        className="h-11 w-11 rounded-full object-cover ring-2 ring-white/15"
-                      />
-                    ) : (
-                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-900 text-sm font-bold text-white ring-2 ring-white/15">
-                        {managerName.slice(0, 1).toUpperCase()}
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                        Manager
-                      </p>
-                      <p className="truncate text-sm font-semibold text-white">
-                        {managerName}
-                      </p>
-                    </div>
+            {managerName && (
+              <div className="hidden lg:block">
+                <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3">
+                  {managerImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={managerImage}
+                      alt=""
+                      className="h-11 w-11 rounded-full object-cover ring-2 ring-white/15"
+                    />
+                  ) : (
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-900 text-sm font-bold text-white ring-2 ring-white/15">
+                      {managerName.slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                      Manager
+                    </p>
+                    <p className="truncate text-sm font-semibold text-white">
+                      {managerName}
+                    </p>
                   </div>
-                )}
-                {viewer && (
-                  <Link
-                    href="/profile"
-                    className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/25 p-3 hover:bg-white/5"
-                  >
-                    {viewer.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={viewer.image}
-                        alt=""
-                        className="h-11 w-11 rounded-full object-cover ring-2 ring-white/15"
-                      />
-                    ) : (
-                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-800 text-sm font-bold text-white ring-2 ring-white/15">
-                        {viewer.name.slice(0, 1).toUpperCase()}
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                        You
-                      </p>
-                      <p className="truncate text-sm font-semibold text-white">
-                        {viewer.name}
-                      </p>
-                    </div>
-                  </Link>
-                )}
+                </div>
               </div>
             )}
 

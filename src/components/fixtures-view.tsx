@@ -31,6 +31,7 @@ export function FixturesView({
 }: Props) {
   const [matches, setMatches] = useState(initialMatches);
   const [busy, setBusy] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phaseTab, setPhaseTab] = useState<"LEAGUE" | "KNOCKOUT">("LEAGUE");
   const [filter, setFilter] = useState<"all" | "open" | "done">("all");
@@ -150,8 +151,37 @@ export function FixturesView({
     homeGoals: number,
     awayGoals: number,
   ) {
-    setBusy(true);
     setError(null);
+    setSavingId(matchId);
+
+    // Optimistic update so UI + navigation stay responsive
+    const previous = matches;
+    setMatches((prev) =>
+      prev.map((m) => {
+        if (m.id !== matchId) return m;
+        const winnerTeamId =
+          homeGoals === awayGoals
+            ? null
+            : homeGoals > awayGoals
+              ? m.homeTeamId
+              : m.awayTeamId;
+        const winnerTeam =
+          winnerTeamId === m.homeTeamId
+            ? m.homeTeam
+            : winnerTeamId === m.awayTeamId
+              ? m.awayTeam
+              : null;
+        return {
+          ...m,
+          homeGoals,
+          awayGoals,
+          winnerTeamId,
+          winnerTeam,
+          status: "COMPLETED",
+        };
+      }),
+    );
+
     try {
       const res = await fetch("/api/matches", {
         method: "PATCH",
@@ -162,9 +192,10 @@ export function FixturesView({
       if (!res.ok) throw new Error(data.error || "Failed");
       setMatches(data.matches);
     } catch (e) {
+      setMatches(previous);
       setError(e instanceof Error ? e.message : "Failed");
     } finally {
-      setBusy(false);
+      setSavingId(null);
     }
   }
 
@@ -315,7 +346,8 @@ export function FixturesView({
         <KnockoutBracket
           matches={knockoutMatches}
           isAdmin={isAdmin}
-          busy={busy}
+          locked={busy}
+          savingId={savingId}
           onSubmit={submitResult}
         />
       )}
@@ -358,7 +390,8 @@ export function FixturesView({
                   match={m}
                   label={`Match ${m.slotIndex + 1}`}
                   isAdmin={isAdmin}
-                  busy={busy}
+                  locked={busy}
+                  saving={savingId === m.id}
                   allowDraw
                   onSubmit={submitResult}
                 />
@@ -387,14 +420,16 @@ function MatchCard({
   match,
   label,
   isAdmin,
-  busy,
+  locked,
+  saving,
   allowDraw,
   onSubmit,
 }: {
   match: MatchWithTeams;
   label: string;
   isAdmin: boolean;
-  busy: boolean;
+  locked: boolean;
+  saving: boolean;
   allowDraw: boolean;
   onSubmit: (matchId: string, homeGoals: number, awayGoals: number) => void;
 }) {
@@ -411,12 +446,12 @@ function MatchCard({
   }, [match.homeGoals, match.awayGoals, match.id]);
 
   const bothSet = !!match.homeTeamId && !!match.awayTeamId;
-  const ready = isAdmin && !busy && bothSet;
+  const ready = isAdmin && !locked && bothSet;
   const scoresReady = homeGoals !== "" && awayGoals !== "";
   const isDrawScores =
     scoresReady && Number(homeGoals) === Number(awayGoals);
   const canSave =
-    ready && scoresReady && (allowDraw || !isDrawScores);
+    ready && !saving && scoresReady && (allowDraw || !isDrawScores);
   const completed = match.status === "COMPLETED";
   const isDraw =
     completed &&
@@ -500,7 +535,7 @@ function MatchCard({
               onSubmit(match.id, Number(homeGoals), Number(awayGoals))
             }
           >
-            {completed ? "Update score" : "Save score"}
+            {saving ? "Saving…" : completed ? "Update score" : "Save score"}
           </button>
         </div>
       )}
